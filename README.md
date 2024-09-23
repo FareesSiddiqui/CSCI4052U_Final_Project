@@ -39,4 +39,4 @@ The chessboard and game states will be encoded as matrices of tensors, where eac
 
 - **Chess Game Databases:** Publicly available chess game datasets such as the Lichess Open Database, Free Internet Chess Server (FICS) game logs, or the ChessBase Mega Database will be used to train both the engine and the opening recognition system.
 
-- **Images of chess pieces:** An online dataset containing images of chess pieces will be used to train teh CV component. Public datasets such as Chessvision or Kaggle datasets could be a good starting point. Based on the performance, these can be augmented by a custom dataset that I could create as well.
+- **Images of chess pieces:** An online dataset containing images of chess pieces will be used to train the CV component. Public datasets such as Chessvision or Kaggle datasets could be a good starting point. Based on the performance, these can be augmented by a custom dataset that I could create as well.
