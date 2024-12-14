@@ -267,7 +267,8 @@ def run(
                     
                     # Map to the 8x8 grid
                     # Map to the 8x8 grid with adjusted row calculation and offset
-                    row = 7 - int((y / square_height) + 0.5)  # Flip Y-axis and adjust by adding 0.5 for rounding
+                    row = int((y / square_height) + 0.5)  # Flip Y-axis and adjust by adding 0.5 for rounding
+                    # row = y // square_height
                     col = x // square_width
 
                     
