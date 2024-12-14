@@ -34,6 +34,7 @@ import os
 import platform
 import sys
 from pathlib import Path
+import numpy as np
 
 import torch
 
@@ -182,6 +183,7 @@ def run(
     # Run inference
     model.warmup(imgsz=(1 if pt or model.triton else bs, 3, *imgsz))  # warmup
     seen, windows, dt = 0, [], (Profile(device=device), Profile(device=device), Profile(device=device))
+    board_grid = np.empty((8, 8), dtype=str)
     for path, im, im0s, vid_cap, s in dataset:
         with dt[0]:
             im = torch.from_numpy(im).to(model.device)
@@ -224,6 +226,11 @@ def run(
                 if not csv_path.is_file():
                     writer.writeheader()
                 writer.writerow(data)
+                
+        fen_mapping = {
+            'white-pawn': 'P', 'white-knight': 'N', 'white-bishop': 'B', 'white-rook': 'R', 'white-queen': 'Q', 'white-king': 'K',
+            'black-pawn': 'p', 'black-knight': 'n', 'black-bishop': 'b', 'black-rook': 'r', 'black-queen': 'q', 'black-king': 'k'
+        }
 
         # Process predictions
         for i, det in enumerate(pred):  # per image
@@ -233,6 +240,65 @@ def run(
                 s += f"{i}: "
             else:
                 p, im0, frame = path, im0s.copy(), getattr(dataset, "frame", 0)
+                
+            img_width, img_height = im0.shape[1], im0.shape[0]
+            square_width = img_width // 8
+            square_height = img_height // 8
+                
+            if len(det):  # if detections exist
+                for *xyxy, conf, cls in reversed(det):  # extract bounding box and class
+                    x1, y1, x2, y2 = [int(coord) for coord in xyxy]  # bounding box coordinates
+                    x = (x1 + x2) // 2  # Center X
+                    y = (y1 + y2) // 2  # Center Y
+                    class_id = int(cls)  # class ID of the detection
+                    conf_score = conf.item()  # confidence score
+                    
+                    piece_name = names[class_id]
+                    piece_label = fen_mapping.get(names[class_id], "") 
+                    
+                    print(f"Class ID: {class_id}, Piece Name: {piece_name}, Mapped Label: {piece_label}")
+                    
+                    if piece_label == "":
+                        print(f"Warning: No FEN mapping found for {piece_name}")
+
+                    # Print or store the coordinates and class for each detection
+                    print(f"Detected {names[class_id]} with confidence {conf_score}")
+                    print(f"Bounding box coordinates: x1={x1}, y1={y1}, x2={x2}, y2={y2}")
+                    
+                    # Map to the 8x8 grid
+                    # Map to the 8x8 grid with adjusted row calculation and offset
+                    row = 7 - int((y / square_height) + 0.5)  # Flip Y-axis and adjust by adding 0.5 for rounding
+                    col = x // square_width
+
+                    
+                    if 0 <= row < 8 and 0 <= col < 8:
+                        board_grid[row][col] = piece_label
+                        print(f"Placed {piece_label} at grid position ({row}, {col}) in board_grid.")
+
+            # After processing detections for the current frame, generate FEN notation
+            fen_rows = []
+            for row in board_grid:
+                fen_row = ""
+                empty_count = 0
+                for square in row:
+                    if square == "":
+                        empty_count += 1
+                    else:
+                        if empty_count > 0:
+                            fen_row += str(empty_count)
+                            empty_count = 0
+                        fen_row += square
+                if empty_count > 0:
+                    fen_row += str(empty_count)
+                fen_rows.append(fen_row)
+
+            # Join rows with '/' to form the FEN position part
+            fen_position = '/'.join(fen_rows)
+            fen = f"{fen_position} w KQkq - 0 1"  # Adjusted FEN string with standard format
+            print("Generated FEN:", fen)
+            
+            # Reset board grid for the next frame if needed
+            board_grid = np.empty((8, 8), dtype=str)
 
             p = Path(p)  # to Path
             save_path = str(save_dir / p.name)  # im.jpg

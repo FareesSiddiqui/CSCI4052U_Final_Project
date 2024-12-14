@@ -1,0 +1,7 @@
+# ignore all pgn files in the entire repository
+*.pgn
+
+# ignore all .pth files in the entire repository
+Engine/*.pth
+
+**/stockfish/
