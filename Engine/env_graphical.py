@@ -10,8 +10,13 @@ from ChessPredictorClass import ChessMovePredictor
 
 pygame.init()
 
+# Dimensions
 SCREEN_SIZE = 640
+FEN_PANEL_WIDTH = 300  # Width of the FEN display panel
+WINDOW_WIDTH = SCREEN_SIZE + FEN_PANEL_WIDTH
+WINDOW_HEIGHT = SCREEN_SIZE  # Keeping the height the same
 SQUARE_SIZE = SCREEN_SIZE // 8
+
 LIGHT_COLOR = (240, 217, 181)
 DARK_COLOR = (181, 136, 99)
 PIECE_SPRITES = pygame.image.load("chess_pieces.png")
@@ -19,6 +24,7 @@ PIECE_SPRITES = pygame.image.load("chess_pieces.png")
 FONT = pygame.font.Font(None, 36)
 TITLE_FONT = pygame.font.Font(None, 48)
 BUTTON_FONT = pygame.font.Font(None, 36)
+SMALL_FONT = pygame.font.Font(None, 24)
 
 # Shared variable for fen updates from CV model
 fen_from_cv = None
@@ -36,9 +42,70 @@ def get_piece_image(piece):
     sprite = PIECE_SPRITES.subsurface(rect).convert_alpha()
     return pygame.transform.scale(sprite, (SQUARE_SIZE, SQUARE_SIZE))
 
-def draw_board(screen, board, selected_square=None):
-    small_font = pygame.font.Font(None, 24)
+def wrap_text(text, font, max_width):
+    """Wrap text to fit within a given width."""
+    words = text.split(' ')
+    lines = []
+    current_line = ""
 
+    for word in words:
+        if current_line == "":
+            test_line = word
+        else:
+            test_line = current_line + ' ' + word
+
+        width, _ = font.size(test_line)
+        if width <= max_width:
+            current_line = test_line
+        else:
+            # If single word is too long, break it down
+            if font.size(word)[0] > max_width:
+                if current_line:
+                    lines.append(current_line)
+                    current_line = ""
+                partial = ""
+                for char in word:
+                    cw, _ = font.size(partial + char)
+                    if cw <= max_width:
+                        partial += char
+                    else:
+                        lines.append(partial)
+                        partial = char
+                if partial:
+                    current_line = partial
+            else:
+                if current_line:
+                    lines.append(current_line)
+                current_line = word
+
+    if current_line:
+        lines.append(current_line)
+
+    return lines
+
+def draw_fen_panel(screen, board):
+    """Draws the FEN string on the right side of the window."""
+    # Define the area for the FEN panel
+    fen_panel_rect = pygame.Rect(SCREEN_SIZE, 0, FEN_PANEL_WIDTH, WINDOW_HEIGHT)
+    pygame.draw.rect(screen, (50, 50, 50), fen_panel_rect)  # Dark background for contrast
+
+    # Get the current FEN string
+    fen = board.fen()
+
+    # Render the FEN label
+    fen_label = FONT.render("FEN:", True, (255, 255, 255))
+    screen.blit(fen_label, (SCREEN_SIZE + 10, 10))
+
+    # Wrap the FEN text if necessary
+    wrapped_fen = wrap_text(fen, FONT, FEN_PANEL_WIDTH - 20)
+    y_offset = 50  # Starting Y position for FEN text
+
+    for line in wrapped_fen:
+        fen_text = FONT.render(line, True, (255, 255, 255))
+        screen.blit(fen_text, (SCREEN_SIZE + 10, y_offset))
+        y_offset += 30  # Adjust spacing as needed
+
+def draw_board(screen, board, selected_square=None):
     for row in range(8):
         for col in range(8):
             color = LIGHT_COLOR if (row + col) % 2 == 0 else DARK_COLOR
@@ -62,7 +129,7 @@ def draw_board(screen, board, selected_square=None):
     for row in range(8):
         square_color = LIGHT_COLOR if (0 + row) % 2 == 0 else DARK_COLOR
         label_color = DARK_COLOR if square_color == LIGHT_COLOR else LIGHT_COLOR
-        rank_label = small_font.render(str(8 - row), True, label_color)
+        rank_label = SMALL_FONT.render(str(8 - row), True, label_color)
         rank_x = 5
         rank_y = row * SQUARE_SIZE + 5
         screen.blit(rank_label, (rank_x, rank_y))
@@ -70,7 +137,7 @@ def draw_board(screen, board, selected_square=None):
     for col in range(8):
         square_color = LIGHT_COLOR if (col + 7) % 2 == 0 else DARK_COLOR
         label_color = DARK_COLOR if square_color == LIGHT_COLOR else LIGHT_COLOR
-        file_label = small_font.render(chr(ord('a') + col), True, label_color)
+        file_label = SMALL_FONT.render(chr(ord('a') + col), True, label_color)
         file_x = (col + 1) * SQUARE_SIZE - 15
         file_y = SCREEN_SIZE - SQUARE_SIZE + 5
         screen.blit(file_label, (file_x, file_y))
@@ -161,41 +228,43 @@ def run_engine_mode(screen, model, device):
     while running:
         screen.fill((0, 0, 0))
         draw_board(screen, board, selected_square)
+        draw_fen_panel(screen, board)  # Draw the FEN panel
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return
             if event.type == pygame.MOUSEBUTTONDOWN and board.turn and not ai_thinking:
                 mouse_x, mouse_y = event.pos
-                col = mouse_x // SQUARE_SIZE
-                row = 7 - (mouse_y // SQUARE_SIZE)
-                square = chess.square(col, row)
-                if selected_square is None:
-                    if board.piece_at(square) and board.piece_at(square).color == board.turn:
-                        selected_square = square
-                else:
-                    move = chess.Move(from_square=selected_square, to_square=square)
-                    if (chess.square_rank(move.to_square) in [0,7] and 
-                        board.piece_at(selected_square) and 
-                        board.piece_at(selected_square).piece_type == chess.PAWN):
-                        promotion_piece = select_promotion(screen, move.to_square, board.turn)
-                        move.promotion = chess.Piece.from_symbol(promotion_piece.lower()).piece_type
-
-                    if move in board.legal_moves:
-                        board.push(move)
-                        selected_square = None
-
-                        if board.is_checkmate():
-                            print("Checkmate! Player wins!")
-                            running = False
-                        elif board.is_stalemate():
-                            print("Stalemate! The game is a draw.")
-                            running = False
-
-                        ai_thinking = True
-                        pygame.time.set_timer(pygame.USEREVENT + 1, 500)
+                if mouse_x < SCREEN_SIZE and mouse_y < SCREEN_SIZE:
+                    col = mouse_x // SQUARE_SIZE
+                    row = 7 - (mouse_y // SQUARE_SIZE)
+                    square = chess.square(col, row)
+                    if selected_square is None:
+                        if board.piece_at(square) and board.piece_at(square).color == board.turn:
+                            selected_square = square
                     else:
-                        selected_square = None
+                        move = chess.Move(from_square=selected_square, to_square=square)
+                        if (chess.square_rank(move.to_square) in [0,7] and 
+                            board.piece_at(selected_square) and 
+                            board.piece_at(selected_square).piece_type == chess.PAWN):
+                            promotion_piece = select_promotion(screen, move.to_square, board.turn)
+                            move.promotion = chess.Piece.from_symbol(promotion_piece.lower()).piece_type
+
+                        if move in board.legal_moves:
+                            board.push(move)
+                            selected_square = None
+
+                            if board.is_checkmate():
+                                print("Checkmate! Player wins!")
+                                running = False
+                            elif board.is_stalemate():
+                                print("Stalemate! The game is a draw.")
+                                running = False
+
+                            ai_thinking = True
+                            pygame.time.set_timer(pygame.USEREVENT + 1, 500)
+                        else:
+                            selected_square = None
 
             if event.type == pygame.USEREVENT + 1 and not board.turn:
                 pygame.time.set_timer(pygame.USEREVENT + 1, 0)
@@ -230,7 +299,7 @@ def read_fen_output(process):
     # Continuously read lines from the subprocess stdout
     for line in process.stdout:
         line = line.strip()
-        print(line)  # Debug print
+        print(line)  # Debug print to console
         if "Generated FEN:" in line:
             # Extract fen
             parts = line.split("Generated FEN:")
@@ -249,6 +318,7 @@ def run_otb_mode(screen):
     # Show the empty board
     screen.fill((0,0,0))
     draw_board(screen, board, None)
+    draw_fen_panel(screen, board)  # Draw the FEN panel
     pygame.display.flip()
 
     # Run the CV model in parallel
@@ -278,6 +348,7 @@ def run_otb_mode(screen):
                 fen_from_cv = None
 
         draw_board(screen, board, selected_square)
+        draw_fen_panel(screen, board)  # Draw the FEN panel
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -286,31 +357,32 @@ def run_otb_mode(screen):
             # Allow user to move pieces manually
             if event.type == pygame.MOUSEBUTTONDOWN:
                 mouse_x, mouse_y = event.pos
-                col = mouse_x // SQUARE_SIZE
-                row = 7 - (mouse_y // SQUARE_SIZE)
-                square = chess.square(col, row)
-                if selected_square is None:
-                    if board.piece_at(square) and board.piece_at(square).color == board.turn:
-                        selected_square = square
-                else:
-                    move = chess.Move(from_square=selected_square, to_square=square)
-                    # Auto-promote to queen for simplicity
-                    if (chess.square_rank(move.to_square) in [0,7] and 
-                        board.piece_at(selected_square) and
-                        board.piece_at(selected_square).piece_type == chess.PAWN):
-                        move.promotion = chess.QUEEN
+                if mouse_x < SCREEN_SIZE and mouse_y < SCREEN_SIZE:
+                    col = mouse_x // SQUARE_SIZE
+                    row = 7 - (mouse_y // SQUARE_SIZE)
+                    square = chess.square(col, row)
+                    if selected_square is None:
+                        if board.piece_at(square) and board.piece_at(square).color == board.turn:
+                            selected_square = square
+                    else:
+                        move = chess.Move(from_square=selected_square, to_square=square)
+                        # Auto-promote to queen for simplicity
+                        if (chess.square_rank(move.to_square) in [0,7] and 
+                            board.piece_at(selected_square) and
+                            board.piece_at(selected_square).piece_type == chess.PAWN):
+                            move.promotion = chess.QUEEN
 
-                    if move in board.legal_moves:
-                        board.push(move)
-                    selected_square = None
+                        if move in board.legal_moves:
+                            board.push(move)
+                        selected_square = None
 
         pygame.display.flip()
 
     process.terminate()  # Clean up if needed
 
 def main():
-    screen = pygame.display.set_mode((SCREEN_SIZE, SCREEN_SIZE))
-    pygame.display.set_caption("Chess")
+    screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))  # Use extended width
+    pygame.display.set_caption("Chess with FEN Display")
 
     model_path = "chess_move_predictor.pth"
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
