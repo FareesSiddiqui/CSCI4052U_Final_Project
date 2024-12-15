@@ -501,14 +501,20 @@ def main():
 
     try:
         while running:
+            # Handle ESC key to return to the home page
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        state = 'home'  # Set state to home when ESC is pressed
+            
             if state == 'home':
                 engine_rect, rl_engine_rect, otb_rect = draw_home_screen(screen)
                 pygame.display.flip()
 
                 for event in pygame.event.get():
-                    if event.type == pygame.QUIT:
-                        running = False
-                    elif event.type == pygame.MOUSEBUTTONDOWN:
+                    if event.type == pygame.MOUSEBUTTONDOWN:
                         mx, my = event.pos
                         if engine_rect.collidepoint(mx, my):
                             state = 'engine_mode'
@@ -538,5 +544,4 @@ def main():
     pygame.quit()
 
 
-if __name__ == "__main__":
-    main()
+main()
