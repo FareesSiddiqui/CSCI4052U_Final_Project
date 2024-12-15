@@ -31,11 +31,9 @@ def mcts_search(root, simulations=200):
     """Perform MCTS from the given root node."""
     for _ in range(simulations):
         node = root
-        # Selection: Traverse the tree to find the most promising unexplored node
         while node.is_fully_expanded() and node.children:
             node = node.best_child()
         
-        # Expansion: Expand the current node by adding a random unexplored child
         if not node.is_fully_expanded():
             move = random.choice([m for m in node.board.legal_moves if all(c.move != m for c in node.children)])
             child_board = node.board.copy()
@@ -44,13 +42,11 @@ def mcts_search(root, simulations=200):
             node.children.append(child_node)
             node = child_node
         
-        # Simulation: Simulate a random playout from the current position
         result = simulate_random_playout(node.board)
         
-        # Backpropagation: Update the node and its ancestors with the result
         backpropagate(node, result)
 
-    return root.best_child(exploration_weight=0)  # Return the child with the highest visit count
+    return root.best_child(exploration_weight=0)
 
 
 def simulate_random_playout(board):
@@ -62,7 +58,7 @@ def simulate_random_playout(board):
     if temp_board.is_checkmate():
         return 1 if temp_board.turn == chess.BLACK else -1
     else:
-        return 0  # Draw
+        return 0 
 
 
 def backpropagate(node, result):
@@ -70,7 +66,7 @@ def backpropagate(node, result):
     while node is not None:
         node.visits += 1
         node.value += result
-        result = -result  # Alternate the result for the opponent
+        result = -result
         node = node.parent
 
 
@@ -80,22 +76,21 @@ def print_board_with_labels(board):
     files = "  " + " ".join([Fore.RED + char + Style.RESET_ALL for char in "abcdefgh"])
 
     print("\nCurrent Board:")
-    print(files)  # Print file labels
+    print(files)
     for i, row in enumerate(board_str):
-        print(f"{8 - i} {row}")  # Print rank on the left side followed by the board row
-    print("\n")  # Add a blank line for better readability
+        print(f"{8 - i} {row}") 
+    print("\n")
 
 
 def main():
-    # Initialize a chess board
     board = chess.Board()
 
     print("Welcome to the Chess Environment with MCTS!")
     print("Type 'exit' to quit.")
-    print_board_with_labels(board)  # Print the starting position with labels
+    print_board_with_labels(board)
 
     while not board.is_game_over():
-        if board.turn:  # White's turn (human player)
+        if board.turn:
             print("\nLegal moves:", [move.uci() for move in board.legal_moves])
             move_input = input("\nEnter your move (e.g., e2e4): ").strip()
             if move_input.lower() == 'exit':
@@ -106,12 +101,12 @@ def main():
                 move = chess.Move.from_uci(move_input)
                 if move in board.legal_moves:
                     board.push(move)
-                    print_board_with_labels(board)  # Update and print the board after the move
+                    print_board_with_labels(board) 
                 else:
                     print("Illegal move! Try again.")
             except ValueError:
                 print("Invalid input. Please enter moves in UCI format (e.g., e2e4).")
-        else:  # Black's turn (AI with MCTS)
+        else:
             print("\nAI is thinking...")
             root = MCTSNode(board)
             best_child = mcts_search(root, simulations=100)
@@ -119,7 +114,6 @@ def main():
             print(f"\nAI played: {best_child.move}")
             print_board_with_labels(board)
 
-    # Game over message
     if board.is_game_over():
         print("\nGame over!")
         if board.is_checkmate():

@@ -3,7 +3,6 @@ import torch
 import transformers
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
-# Initialize the chatbot
 MIN_TRANSFORMERS_VERSION = '4.25.1'
 assert transformers.__version__ >= MIN_TRANSFORMERS_VERSION, f'Please upgrade transformers to version {MIN_TRANSFORMERS_VERSION} or higher.'
 
@@ -11,10 +10,8 @@ tokenizer = AutoTokenizer.from_pretrained("Waterhorse/chessgpt-chat-v1")
 model = AutoModelForCausalLM.from_pretrained("Waterhorse/chessgpt-chat-v1", torch_dtype=torch.float16)
 model = model.to('cuda:0')
 
-# Initialize Pygame
 pygame.init()
 
-# Constants
 WINDOW_WIDTH, WINDOW_HEIGHT = 800, 600
 FONT_SIZE = 24
 BG_COLOR = (30, 30, 30)
@@ -24,21 +21,18 @@ INPUT_TEXT_COLOR = (255, 255, 255)
 CURSOR_COLOR = (255, 255, 255)
 PADDING = 10
 LINE_SPACING = 5
-CURSOR_BLINK_INTERVAL = 500  # Cursor blink interval in milliseconds
+CURSOR_BLINK_INTERVAL = 500  
 
-# Fonts
 FONT = pygame.font.Font(None, FONT_SIZE)
 
-# Pygame window setup
 screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
 pygame.display.set_caption("Chatbot")
 clock = pygame.time.Clock()
 
-# Variables
 input_box = pygame.Rect(PADDING, WINDOW_HEIGHT - 50, WINDOW_WIDTH - 2 * PADDING, 40)
 input_text = ""
 chat_history = []
-cursor_visible = True  # Tracks whether the cursor is currently visible
+cursor_visible = True 
 last_cursor_blink_time = pygame.time.get_ticks()
 
 def chatbot_response(prompt):
@@ -73,7 +67,6 @@ def draw_chat_window():
     """Draw the chat window and text input area."""
     global cursor_visible, last_cursor_blink_time
 
-    # Check for cursor blink toggle
     current_time = pygame.time.get_ticks()
     if current_time - last_cursor_blink_time >= CURSOR_BLINK_INTERVAL:
         cursor_visible = not cursor_visible
@@ -81,21 +74,18 @@ def draw_chat_window():
 
     screen.fill(BG_COLOR)
 
-    # Draw chat history
     y_offset = PADDING
-    for line in chat_history[-20:]:  # Limit display to the last 20 entries
+    for line in chat_history[-20:]: 
         wrapped_lines = wrap_text(line, FONT, WINDOW_WIDTH - 2 * PADDING)
         for wrapped_line in wrapped_lines:
             text_surface = FONT.render(wrapped_line, True, TEXT_COLOR)
             screen.blit(text_surface, (PADDING, y_offset))
             y_offset += FONT_SIZE + LINE_SPACING
 
-    # Draw input box
     pygame.draw.rect(screen, INPUT_COLOR, input_box)
     input_surface = FONT.render(input_text, True, INPUT_TEXT_COLOR)
     screen.blit(input_surface, (input_box.x + PADDING, input_box.y + (input_box.height - FONT_SIZE) // 2))
 
-    # Draw cursor
     if cursor_visible:
         cursor_x = input_box.x + PADDING + FONT.size(input_text)[0]
         cursor_y = input_box.y + (input_box.height - FONT_SIZE) // 2
@@ -103,7 +93,6 @@ def draw_chat_window():
 
     pygame.display.flip()
 
-# Main loop
 running = True
 while running:
     for event in pygame.event.get():
@@ -111,19 +100,18 @@ while running:
             running = False
 
         elif event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_RETURN:  # Submit input
+            if event.key == pygame.K_RETURN: 
                 if input_text.strip():
                     user_query = f"You: {input_text.strip()}"
                     chat_history.append(user_query)
 
-                    # Get chatbot response
                     bot_reply = chatbot_response(input_text.strip())
                     chat_history.append(f"Bot: {bot_reply}")
 
-                    input_text = ""  # Clear input text
-            elif event.key == pygame.K_BACKSPACE:  # Handle backspace
+                    input_text = ""
+            elif event.key == pygame.K_BACKSPACE: 
                 input_text = input_text[:-1]
-            else:  # Add character to input text
+            else:
                 input_text += event.unicode
 
     draw_chat_window()
