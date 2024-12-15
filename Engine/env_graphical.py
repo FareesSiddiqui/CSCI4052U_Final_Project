@@ -4,6 +4,7 @@ import random
 import torch
 import numpy as np
 import subprocess
+import multiprocessing
 import sys
 import threading
 from ChessPredictorClass import ChessMovePredictor
@@ -29,6 +30,40 @@ SMALL_FONT = pygame.font.Font(None, 24)
 # Shared variable for fen updates from CV model
 fen_from_cv = None
 fen_lock = threading.Lock()
+
+def chatbot_process():
+    """
+    Run the chatbot script as a subprocess.
+    """
+    try:
+        # Run the chatbot script as a subprocess
+        process = subprocess.Popen(
+            ["python", "../NLP/chatbot.py"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+
+        # Continuously read and print output for debugging purposes
+        for line in process.stdout:
+            print(line.strip())  # Print the chatbot's output to the console
+
+        # Wait for the process to complete
+        process.wait()
+
+    except Exception as e:
+        print(f"Error running chatbot script: {e}")
+
+
+# Function to run the chatbot in its own process
+def run_chatbot_in_process():
+    """
+    Starts the chatbot process.
+    """
+    # Create and start the process
+    process = multiprocessing.Process(target=chatbot_process, daemon=True)
+    process.start()
+    return process
 
 def get_piece_image(piece):
     sprite_width = PIECE_SPRITES.get_width() // 6
@@ -381,6 +416,10 @@ def run_otb_mode(screen):
     process.terminate()  # Clean up if needed
 
 def main():
+    # Start chatbot process
+    chatbot_process = run_chatbot_in_process()
+    print("Chatbot process started...")
+
     screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))  # Use extended width
     pygame.display.set_caption("Chess with FEN Display")
 
@@ -392,30 +431,39 @@ def main():
     state = 'home'
     running = True
 
-    while running:
-        if state == 'home':
-            engine_rect, otb_rect = draw_home_screen(screen)
-            pygame.display.flip()
+    try:
+        while running:
+            if state == 'home':
+                engine_rect, otb_rect = draw_home_screen(screen)
+                pygame.display.flip()
 
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    running = False
-                elif event.type == pygame.MOUSEBUTTONDOWN:
-                    mx, my = event.pos
-                    if engine_rect.collidepoint(mx, my):
-                        state = 'engine_mode'
-                    elif otb_rect.collidepoint(mx, my):
-                        state = 'otb_mode'
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        running = False
+                    elif event.type == pygame.MOUSEBUTTONDOWN:
+                        mx, my = event.pos
+                        if engine_rect.collidepoint(mx, my):
+                            state = 'engine_mode'
+                        elif otb_rect.collidepoint(mx, my):
+                            state = 'otb_mode'
 
-        elif state == 'engine_mode':
-            run_engine_mode(screen, model, device)
-            state = 'home'
+            elif state == 'engine_mode':
+                run_engine_mode(screen, model, device)
+                state = 'home'
 
-        elif state == 'otb_mode':
-            run_otb_mode(screen)
-            state = 'home'
+            elif state == 'otb_mode':
+                run_otb_mode(screen)
+                state = 'home'
+
+    finally:
+        # Ensure chatbot process is terminated when main program exits
+        if chatbot_process.is_alive():
+            print("Terminating chatbot process...")
+            chatbot_process.terminate()
+        print("Main program finished.")
 
     pygame.quit()
+
 
 if __name__ == "__main__":
     main()
